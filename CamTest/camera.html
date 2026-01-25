@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Interview Coach - Dual Analysis</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .app-container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 900px; display: flex; gap: 25px; }
+        
+        /* Left Column */
+        .input-section { flex: 1.2; display: flex; flex-direction: column; gap: 15px; }
+        video { width: 100%; border-radius: 8px; background: #000; transform: scaleX(-1); border: 1px solid #ddd;}
+        
+        .question-box { background: #eef2f5; padding: 10px; border-radius: 6px; border: 1px solid #ced4da; }
+        select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; background: white; margin-top: 5px;}
+        textarea { width: 95%; height: 80px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; resize: none; font-family: inherit; }
+        
+        button { background: #28a745; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #218838; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* Right Column */
+        .feedback-section { flex: 1; border-left: 1px solid #eee; padding-left: 25px; display: flex; flex-direction: column; overflow-y: auto; }
+        
+        .score-card { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .score-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .score-title { font-weight: bold; font-size: 14px; text-transform: uppercase; color: #555; }
+        .score-val { font-size: 28px; font-weight: 800; }
+        .feedback-text { font-size: 14px; color: #666; line-height: 1.4; }
+
+        /* Colors for scores */
+        .visual-color { color: #d9534f; } /* Red/Orange for face */
+        .verbal-color { color: #0275d8; } /* Blue for text */
+
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #28a745; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 50px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <div class="input-section">
+        <h3>📹 Live Interview</h3>
+        
+        <div class="question-box">
+            <label style="font-size:12px; font-weight:bold; color:#555;">INTERVIEW QUESTION:</label>
+            <select id="questionSelector">
+                <option value="Tell me about yourself.">Tell me about yourself.</option>
+                <option value="Tell me about a time you faced a challenge.">Tell me about a time you faced a challenge.</option>
+                <option value="Why do you want this job?">Why do you want this job?</option>
+                <option value="What is your biggest weakness?">What is your biggest weakness?</option>
+            </select>
+        </div>
+
+        <video id="videoFeed" autoplay playsinline></video>
+        <canvas id="hiddenCanvas" style="display:none;"></canvas>
+        
+        <textarea id="textInput" placeholder="Type or speak your answer here..."></textarea>
+        
+        <button id="submitBtn">Analyze Response</button>
+    </div>
+
+    <div class="feedback-section">
+        <h3>📊 Coach Feedback</h3>
+        <div id="loader" class="loader"></div>
+        <div id="placeholder" style="color:#aaa; margin-top:60px; text-align:center;">Waiting for answer...</div>
+        
+        <div id="results" style="display:none;">
+            
+            <div class="score-card">
+                <div class="score-header">
+                    <span class="score-title">😐 Visual Confidence</span>
+                    <span class="score-val visual-color"><span id="visScore">0</span>/100</span>
+                </div>
+                <div id="visFeedback" class="feedback-text">...</div>
+            </div>
+
+            <div class="score-card">
+                <div class="score-header">
+                    <span class="score-title">🗣️ Verbal Content</span>
+                    <span class="score-val verbal-color"><span id="verbScore">0</span>/100</span>
+                </div>
+                <div id="verbFeedback" class="feedback-text">...</div>
+            </div>
+
+            <div style="background: #e9f7ef; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                <div style="font-weight:bold; color:#1e7e34; margin-bottom:5px;">💡 Coach's Tip</div>
+                <div id="finalTip" style="font-size:14px; font-style:italic; color:#333;">...</div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('videoFeed');
+    const canvas = document.getElementById('hiddenCanvas');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // UI References
+    const resultsDiv = document.getElementById('results');
+    const loader = document.getElementById('loader');
+    const placeholder = document.getElementById('placeholder');
+
+    // Start Camera
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => { video.srcObject = stream; })
+        .catch(err => alert("Camera Error: " + err));
+
+    submitBtn.addEventListener('click', () => {
+        const text = document.getElementById('textInput').value;
+        const question = document.getElementById('questionSelector').value;
+        
+        if (!text) { alert("Please type an answer first."); return; }
+
+        // UI Loading State
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Analyzing...";
+        loader.style.display = 'block';
+        resultsDiv.style.display = 'none';
+        placeholder.style.display = 'none';
+
+        // Capture Frame
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        canvas.toBlob(async (blob) => {
+            const formData = new FormData();
+            formData.append('text_input', text);
+            formData.append('context_text', question);
+            formData.append('camera_frame', blob, 'snap.jpg');
+
+            try {
+                // Send to WSL Backend
+                const response = await fetch('http://localhost:5000/api/evaluate', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                // Map JSON to HTML
+                document.getElementById('visScore').innerText = data.visual_score;
+                document.getElementById('visFeedback').innerText = data.visual_feedback;
+                
+                document.getElementById('verbScore').innerText = data.verbal_score;
+                document.getElementById('verbFeedback').innerText = data.verbal_feedback;
+                
+                document.getElementById('finalTip').innerText = data.coaching_tip;
+                
+                resultsDiv.style.display = 'block';
+            } catch (e) {
+                alert("Error: " + e);
+            } finally {
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Analyze Response";
+            }
+        }, 'image/jpeg');
+    });
+</script>
+
+</body>
+</html>
