@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Camera Connection Test</title>
+    <style>
+        body { font-family: monospace; text-align: center; padding: 20px; background: #222; color: #fff; }
+        video { border: 2px solid #0f0; border-radius: 8px; margin-bottom: 10px; }
+        button { padding: 15px 30px; font-size: 18px; cursor: pointer; background: #0f0; border: none; font-weight: bold; }
+        button:hover { background: #0c0; }
+        #status { margin-top: 20px; padding: 10px; border: 1px solid #555; display: inline-block; min-width: 300px;}
+        .success { color: #0f0; }
+        .error { color: #f00; }
+    </style>
+</head>
+<body>
+
+    <h1>Pipeline Verification</h1>
+    <p>1. See yourself below. 2. Click Test.</p>
+
+    <video id="videoFeed" width="480" height="360" autoplay playsinline></video>
+    
+    <canvas id="hiddenCanvas" width="480" height="360" style="display:none;"></canvas>
+
+    <br>
+    <button id="btnCapture">TEST CONNECTION TO WSL</button>
+
+    <div id="status">Waiting for user input...</div>
+
+    <script>
+        const video = document.getElementById('videoFeed');
+        const canvas = document.getElementById('hiddenCanvas');
+        const btn = document.getElementById('btnCapture');
+        const statusDiv = document.getElementById('status');
+        const API_URL = "http://localhost:5000/verify";
+
+        // 1. Initialize Camera
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                statusDiv.innerText = "Camera Active. Ready to send.";
+            } catch (err) {
+                statusDiv.innerHTML = "<span class='error'>Camera Error: " + err.message + "</span>";
+            }
+        }
+
+        // 2. Capture and Send
+        btn.addEventListener('click', () => {
+            statusDiv.innerText = "Capturing and sending...";
+            
+            // Draw video frame to canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert to Blob (File)
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    statusDiv.innerText = "Error: Could not create image blob.";
+                    return;
+                }
+                uploadImage(blob);
+            }, 'image/jpeg');
+        });
+
+        // 3. Upload Logic
+        async function uploadImage(blob) {
+            const formData = new FormData();
+            formData.append('camera_frame', blob, 'test_snap.jpg');
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = "<span class='success'>✅ " + result.message + 
+                                          "<br>Saved at: " + result.saved_at + "</span>";
+                } else {
+                    statusDiv.innerHTML = "<span class='error'>❌ Server Error: " + result.message + "</span>";
+                }
+
+            } catch (err) {
+                statusDiv.innerHTML = "<span class='error'>❌ Network Error. Is verify_app.py running?</span>";
+                console.error(err);
+            }
+        }
+
+        initCamera();
+    </script>
+</body>
+</html>
