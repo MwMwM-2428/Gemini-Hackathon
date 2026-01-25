@@ -3,7 +3,36 @@ import React, { useState } from 'react';
 
 function App() {
   const [interviewGoal, setInterviewGoal] = useState('');
+  const [resumeFile, setResumeFile] = useState(null);
+  const [textInput, setTextInput] = useState('');
+  
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioURL, setAudioURL] = useState(null);
+  const mediaRecorderRef = React.useRef(null);
+
   const [evaluation, setEvaluation] = useState(null);
+
+  const startRecording = async () => {
+    setIsRecording(true);
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorderRef.current = new MediaRecorder(stream);
+    const audioChunks = [];
+
+    mediaRecorderRef.current.ondataavailable = event => audioChunks.push(event.data);
+    mediaRecorderRef.current.onstop = () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      setAudioBlob(audioBlob);
+      setAudioURL(URL.createObjectURL(audioBlob));
+    };
+
+    mediaRecorderRef.current.start();
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current.stop();
+    setIsRecording(false);
+  };
 
   const handleStart = async () => {
     // Call backend API to set context 

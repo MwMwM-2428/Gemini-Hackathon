@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gemini Backend Tester</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; line-height: 1.6; }
+        section { border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 8px; }
+        button { padding: 10px 15px; cursor: pointer; margin-right: 10px; }
+        #status { color: blue; font-weight: bold; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; }
+        .recording { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Gemini Interview API Tester</h1>
+
+    <section>
+        <h3>1. Configuration</h3>
+        <label>Goal: <input type="text" id="goal" value="Software Engineer"></label><br><br>
+        <label>Resume (PDF): <input type="file" id="resume" accept=".pdf"></label>
+    </section>
+
+    <section>
+        <h3>2. Audio Recording</h3>
+        <p id="recordStatus">Status: Idle</p>
+        <button id="startBtn">Start Recording</button>
+        <button id="stopBtn" disabled>Stop Recording</button>
+        <div id="audioPlayback" style="margin-top: 10px;"></div>
+    </section>
+
+    <section>
+        <h3>3. Submit</h3>
+        <button id="submitBtn" style="background: #007bff; color: white;">Run Evaluation</button>
+        <p id="status"></p>
+    </section>
+
+    <section>
+        <h3>4. Result</h3>
+        <pre id="result">Results will appear here...</pre>
+    </section>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlob = null;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const recordStatus = document.getElementById('recordStatus');
+        const audioPlayback = document.getElementById('audioPlayback');
+
+        // --- Audio Logic ---
+        startBtn.onclick = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const url = URL.createObjectURL(audioBlob);
+                audioPlayback.innerHTML = `<audio src="${url}" controls></audio>`;
+                recordStatus.innerText = "Status: Audio Captured";
+                recordStatus.classList.remove('recording');
+            };
+
+            mediaRecorder.start();
+            recordStatus.innerText = "Status: Recording...";
+            recordStatus.classList.add('recording');
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+        };
+
+        stopBtn.onclick = () => {
+            mediaRecorder.stop();
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        };
+
+        // --- Submission Logic ---
+        submitBtn.onclick = async () => {
+            const goal = document.getElementById('goal').value;
+            const resumeFile = document.getElementById('resume').files[0];
+            const status = document.getElementById('status');
+            const resultDisplay = document.getElementById('result');
+
+            status.innerText = "Processing... (Waiting for Gemini)";
+            resultDisplay.innerText = "Loading...";
+
+            const formData = new FormData();
+            formData.append('goal', goal);
+            if (resumeFile) formData.append('file', resumeFile);
+            if (audioBlob) formData.append('audio_response', audioBlob, 'test_audio.wav');
+
+            try {
+                const response = await fetch('http://localhost:5000/api/evaluate', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                resultDisplay.innerText = JSON.stringify(data, null, 2);
+                status.innerText = "Success!";
+            } catch (err) {
+                status.innerText = "Error: " + err.message;
+                resultDisplay.innerText = "Make sure your Flask server is running on http://localhost:5000";
+            }
+        };
+    </script>
+</body>
+</html>

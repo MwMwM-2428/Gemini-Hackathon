@@ -13,7 +13,7 @@ CORS(app)
 # 1. Initialize the new Client
 # It will automatically look for the GEMINI_API_KEY environment variable
 client = genai.Client(api_key="USE YOUR OWN KEY") # TODO - Remember to replace with your own key
-MODEL_ID = "gemini-2.0-flash" # Use a stable ID or 'gemini-2.0-flash'
+MODEL_ID = "gemini-2.5-flash" # Use a stable ID or 'gemini-2.0-flash'
 
 def extract_text_from_pdf(pdf_file):
     try:
@@ -62,7 +62,7 @@ def evaluate_interview():
           "metrics": {{
             "filler_word_count": "string",
             "tone_analysis": "string",
-            "pacing": "string"
+            "pacing": "string",
             "confidence": "string",
             "clarity": "string",
             "stutters": "string",
@@ -79,8 +79,8 @@ def evaluate_interview():
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_audio_file:
                 audio_response.save(temp_audio_file.name)
                 temp_path = temp_audio_file.name
-            
-            uploaded_audio = client.files.upload(file = temp_path, mime_type=audio_response.mimetype)
+
+            uploaded_audio = client.files.upload(file = temp_path, config = {'mime_type' : audio_response.mimetype})
             contents.append(uploaded_audio)
 
         # 2. Correct syntax for the new SDK
